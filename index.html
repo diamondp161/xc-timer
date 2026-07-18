@@ -55,7 +55,7 @@
         <label style="display:block; margin-top:15px;"><strong>Upload Master Roster (CSV):</strong></label>
         <p style="font-size:12px; color:#64748b; margin-bottom:5px;">Format: Bib, Name, Team, Gender, AgeGroup</p>
         <input type="file" id="csv-file" accept=".csv">
-        <p id="roster-status" style="margin-top:5px; font-size:14px; color:var(--success); font-weight:bold;"></p>
+        <p id="roster-status" style="margin-top:5px; font-size:14px; color:var(--success); font-weight:bold;">Waiting for a CSV file...</p>
     </div>
 
     <!-- STEP 2: ACTIVE RACE EXECUTION -->
@@ -117,44 +117,63 @@
         }
 
         // --- 1. ROSTER CSV PARSING ---
-        document.getElementById('csv-file').addEventListener('change', function (e) {
-            const file = e.target.files[0];
+        function parseRosterText(text) {
+            const lines = text.split(/\r?\n/);
+            let count = 0;
+
+            roster = {};
+            raceOptions = [];
+
+            lines.forEach((line, index) => {
+                if (index === 0 || !line.trim()) return;
+
+                const columns = line.split(',');
+                if (columns.length >= 5) {
+                    const bib = columns[0].trim();
+                    const name = columns[1] ? columns[1].trim() : '';
+                    const team = columns[2] ? columns[2].trim() : '';
+                    const gender = columns[3] ? columns[3].trim() : 'N/A';
+                    const ageGroup = columns[4] ? columns[4].trim() : 'N/A';
+                    const raceName = `${gender} ${ageGroup}`.trim();
+
+                    if (bib) {
+                        roster[bib] = { name, team, gender, ageGroup, raceName };
+                        count++;
+                        if (raceName) raceOptions.push(raceName);
+                    }
+                }
+            });
+
+            return count;
+        }
+
+        window.handleRosterUpload = function (e) {
+            const file = e.target.files && e.target.files[0];
+            const status = document.getElementById('roster-status');
+            const select = document.getElementById('race-name');
+
             if (!file) return;
+
+            status.textContent = 'Loading roster...';
+            status.style.color = 'var(--warning)';
+            select.innerHTML = '<option value="">Select a race</option>';
 
             const reader = new FileReader();
             reader.onload = function (event) {
-                const text = event.target.result;
-                const lines = text.split(/\r?\n/);
-                let count = 0;
-
-                roster = {};
-                raceOptions = [];
-
-                lines.forEach((line, index) => {
-                    if (index === 0 || !line.trim()) return;
-
-                    const columns = line.split(',');
-                    if (columns.length >= 3) {
-                        const bib = columns[0].trim();
-                        const name = columns[1] ? columns[1].trim() : '';
-                        const team = columns[2] ? columns[2].trim() : '';
-                        const gender = columns[3] ? columns[3].trim() : 'N/A';
-                        const ageGroup = columns[4] ? columns[4].trim() : 'N/A';
-                        const raceName = `${gender} ${ageGroup}`.trim();
-
-                        if (bib) {
-                            roster[bib] = { name, team, gender, ageGroup, raceName };
-                            count++;
-                            if (raceName) raceOptions.push(raceName);
-                        }
-                    }
-                });
-
+                const text = event.target.result || '';
+                const count = parseRosterText(text);
                 populateRaceOptions();
-                document.getElementById('roster-status').textContent = `✅ Loaded ${count} master runners!`;
+                status.textContent = `✅ Loaded ${count} master runners!`;
+                status.style.color = 'var(--success)';
+            };
+            reader.onerror = function () {
+                status.textContent = '❌ Could not read the selected CSV file.';
+                status.style.color = 'var(--danger)';
             };
             reader.readAsText(file);
-        });
+        };
+
+        document.getElementById('csv-file').addEventListener('change', window.handleRosterUpload);
 
         // --- 2. TIMER LOGIC ---
         function startTimer() {

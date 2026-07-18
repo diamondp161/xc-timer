@@ -176,7 +176,7 @@
         document.getElementById('csv-file').addEventListener('change', window.handleRosterUpload);
 
         // --- 2. TIMER LOGIC ---
-        function startTimer() {
+        window.startTimer = function () {
             if (running) return;
             const currentRace = document.getElementById('race-name').value.trim();
             if (!currentRace) {
@@ -206,7 +206,7 @@
             return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(hundredths).padStart(2, '0')}`;
         }
 
-        function stopTimer() {
+        window.stopTimer = function () {
             clearInterval(timerInterval);
             running = false;
             document.getElementById('stop-btn').classList.add('hidden');
@@ -214,7 +214,7 @@
             document.getElementById('tap-button').classList.add('hidden');
         }
 
-        function resetTimer() {
+        window.resetTimer = function () {
             if(confirm("Are you sure you want to clear the clock and prepare for the next race? Make sure you exported your data first!")) {
                 finishers = [];
                 document.getElementById('finish-log').innerHTML = "";
@@ -228,7 +228,7 @@
         }
 
         // --- 3. RECORD FINISHER ---
-        function recordFinisher() {
+        window.recordFinisher = function () {
             if (!running) return;
             const elapsed = performance.now() - startTime;
             const timeStr = formatTime(elapsed);
@@ -278,7 +278,7 @@
             }
         }
 
-        function sendToGoogleSheets() {
+        window.sendToGoogleSheets = function () {
             const url = document.getElementById('script-url').value.trim();
             const currentRace = document.getElementById('race-name').value.trim();
 

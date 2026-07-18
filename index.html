@@ -61,8 +61,11 @@
     <!-- STEP 2: ACTIVE RACE EXECUTION -->
     <div class="section">
         <h2>2. Current Race Execution</h2>
-        <label><strong>Active Race Name / Division:</strong></label>
-        <input type="text" id="race-name" placeholder="e.g., Girls Varsity, Boys Under 12">
+        <label><strong>Active Race:</strong></label>
+        <select id="race-name">
+            <option value="">Select a race</option>
+        </select>
+        <p style="font-size:12px; color:#64748b; margin-top:6px;">The dropdown is built from the Gender + AgeGroup values in the uploaded CSV.</p>
         
         <div class="timer-display" id="clock">00:00.00</div>
         <button class="btn btn-start" id="start-btn" onclick="startTimer()">🚀 Start Current Race</button>
@@ -89,33 +92,66 @@
         let timerInterval = null;
         let running = false;
         let finishers = [];
-        let roster = {}; 
+        let roster = {};
+        let raceOptions = [];
+
+        function populateRaceOptions() {
+            const select = document.getElementById('race-name');
+            const previousValue = select.value;
+            const options = [...new Set(raceOptions.filter(Boolean))].sort();
+
+            select.innerHTML = '<option value="">Select a race/division</option>';
+
+            options.forEach((value) => {
+                const option = document.createElement('option');
+                option.value = value;
+                option.textContent = value;
+                select.appendChild(option);
+            });
+
+            if (previousValue && options.includes(previousValue)) {
+                select.value = previousValue;
+            } else if (options.length) {
+                select.value = options[0];
+            }
+        }
 
         // --- 1. ROSTER CSV PARSING ---
-        document.getElementById('csv-file').addEventListener('change', function(e) {
-            const file = e.target.files;
+        document.getElementById('csv-file').addEventListener('change', function (e) {
+            const file = e.target.files[0];
             if (!file) return;
-            
+
             const reader = new FileReader();
-            reader.onload = function(event) {
+            reader.onload = function (event) {
                 const text = event.target.result;
-                const lines = text.split('\n');
+                const lines = text.split(/\r?\n/);
                 let count = 0;
-                
+
+                roster = {};
+                raceOptions = [];
+
                 lines.forEach((line, index) => {
-                    if (index === 0 || !line.trim()) return; 
+                    if (index === 0 || !line.trim()) return;
+
                     const columns = line.split(',');
                     if (columns.length >= 3) {
-                        const bib = columns.trim();
-                        const name = columns.trim();
-                        const team = columns.trim();
-                        const gender = columns ? columns.trim() : "N/A";
-                        const ageGroup = columns ? columns.trim() : "N/A";
-                        roster[bib] = { name, team, gender, ageGroup };
-                        count++;
+                        const bib = columns[0].trim();
+                        const name = columns[1] ? columns[1].trim() : '';
+                        const team = columns[2] ? columns[2].trim() : '';
+                        const gender = columns[3] ? columns[3].trim() : 'N/A';
+                        const ageGroup = columns[4] ? columns[4].trim() : 'N/A';
+                        const raceName = `${gender} ${ageGroup}`.trim();
+
+                        if (bib) {
+                            roster[bib] = { name, team, gender, ageGroup, raceName };
+                            count++;
+                            if (raceName) raceOptions.push(raceName);
+                        }
                     }
                 });
-                document.getElementById('roster-status').innerText = `✅ Loaded ${count} master runners!`;
+
+                populateRaceOptions();
+                document.getElementById('roster-status').textContent = `✅ Loaded ${count} master runners!`;
             };
             reader.readAsText(file);
         });
@@ -125,7 +161,7 @@
             if (running) return;
             const currentRace = document.getElementById('race-name').value.trim();
             if (!currentRace) {
-                alert("Please type a name for the active race before starting!");
+                alert('Please select a race before starting!');
                 return;
             }
             
@@ -166,7 +202,9 @@
                 document.getElementById('clock').innerText = "00:00.00";
                 document.getElementById('race-name').value = "";
                 document.getElementById('start-btn').classList.remove('hidden');
+                document.getElementById('stop-btn').classList.add('hidden');
                 document.getElementById('reset-btn').classList.add('hidden');
+                document.getElementById('tap-button').classList.add('hidden');
             }
         }
 

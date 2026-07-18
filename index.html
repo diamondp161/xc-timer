@@ -68,22 +68,22 @@
         <p style="font-size:12px; color:#64748b; margin-top:6px;">The dropdown is built from the Gender + AgeGroup values in the uploaded CSV.</p>
         
         <div class="timer-display" id="clock">00:00.00</div>
-        <button class="btn btn-start" id="start-btn" onclick="startTimer()">🚀 Start Current Race</button>
-        <button class="btn btn-stop hidden" id="stop-btn" onclick="stopTimer()">🛑 Stop Race Clock</button>
-        <button class="btn btn-reset hidden" id="reset-btn" onclick="resetTimer()">🔄 Reset Clock for Next Race</button>
+        <button class="btn btn-start" id="start-btn">🚀 Start Current Race</button>
+        <button class="btn btn-stop hidden" id="stop-btn">🛑 Stop Race Clock</button>
+        <button class="btn btn-reset hidden" id="reset-btn">🔄 Reset Clock for Next Race</button>
     </div>
 
     <!-- STEP 3: RESULTS LOG -->
     <div class="section">
         <h2>3. Active Race Finish Line Log</h2>
-        <button class="btn" style="background:#475569;" onclick="sendToGoogleSheets()">🚀 Export Current Race to Sheets</button>
+        <button class="btn" id="export-btn" style="background:#475569;">🚀 Export Current Race to Sheets</button>
         <div id="finish-log">
             <!-- Finisher splits appear here -->
         </div>
     </div>
 
     <!-- LARGE MOBILE TAP BUTTON -->
-    <div class="tap-zone hidden" id="tap-button" onclick="recordFinisher()">
+    <div class="tap-zone hidden" id="tap-button">
         ⏱️ TAP AT FINISH LINE
     </div>
 
@@ -147,7 +147,7 @@
             return count;
         }
 
-        window.handleRosterUpload = function (e) {
+        function handleRosterUpload(e) {
             const file = e.target.files && e.target.files[0];
             const status = document.getElementById('roster-status');
             const select = document.getElementById('race-name');
@@ -171,9 +171,10 @@
                 status.style.color = 'var(--danger)';
             };
             reader.readAsText(file);
-        };
+        }
 
-        document.getElementById('csv-file').addEventListener('change', window.handleRosterUpload);
+        window.handleRosterUpload = handleRosterUpload;
+        document.getElementById('csv-file').addEventListener('change', handleRosterUpload);
 
         // --- 2. TIMER LOGIC ---
         window.startTimer = function () {
@@ -183,16 +184,16 @@
                 alert('Please select a race before starting!');
                 return;
             }
-            
+
             running = true;
             startTime = performance.now();
             timerInterval = setInterval(updateClock, 10);
-            
+
             document.getElementById('start-btn').classList.add('hidden');
             document.getElementById('stop-btn').classList.remove('hidden');
             document.getElementById('reset-btn').classList.add('hidden');
             document.getElementById('tap-button').classList.remove('hidden');
-        }
+        };
 
         function updateClock() {
             const elapsed = performance.now() - startTime;
@@ -212,7 +213,7 @@
             document.getElementById('stop-btn').classList.add('hidden');
             document.getElementById('reset-btn').classList.remove('hidden');
             document.getElementById('tap-button').classList.add('hidden');
-        }
+        };
 
         window.resetTimer = function () {
             if(confirm("Are you sure you want to clear the clock and prepare for the next race? Make sure you exported your data first!")) {
@@ -225,7 +226,7 @@
                 document.getElementById('reset-btn').classList.add('hidden');
                 document.getElementById('tap-button').classList.add('hidden');
             }
-        }
+        };
 
         // --- 3. RECORD FINISHER ---
         window.recordFinisher = function () {
@@ -233,11 +234,11 @@
             const elapsed = performance.now() - startTime;
             const timeStr = formatTime(elapsed);
             const racePlace = finishers.length + 1;
-            
+
             const finisher = { racePlace, time: timeStr, bib: "" };
             finishers.push(finisher);
             renderFinisherRow(finisher);
-        }
+        };
 
         function renderFinisherRow(finisher) {
             const log = document.getElementById('finish-log');
@@ -309,4 +310,14 @@
             })
                 .then(() => alert(`🚀 Results for ${currentRace} successfully saved to Google Sheets!`))
                 .catch((err) => alert('Error saving results: ' + err));
-        }
+        };
+
+        document.getElementById('start-btn').addEventListener('click', window.startTimer);
+        document.getElementById('stop-btn').addEventListener('click', window.stopTimer);
+        document.getElementById('reset-btn').addEventListener('click', window.resetTimer);
+        document.getElementById('export-btn').addEventListener('click', window.sendToGoogleSheets);
+        document.getElementById('tap-button').addEventListener('click', window.recordFinisher);
+    </script>
+</body>
+</html>
+

@@ -3,12 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>XC Race Timer (Type-In)</title>
+    <title>XC Multi-Race Timer</title>
     <style>
         :root {
             --primary: #2563eb;
             --success: #16a34a;
             --danger: #dc2626;
+            --warning: #eab308;
             --background: #f8fafc;
             --card: #ffffff;
             --text: #1e293b;
@@ -18,20 +19,17 @@
         h1, h2 { margin-bottom: 10px; font-weight: 700; }
         .section { background: var(--card); padding: 15px; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
         
-        /* Setup Controls */
-        input[type="file"], input[type="text"], input[type="number"] { width: 100%; padding: 12px; margin-top: 5px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 15px; }
+        input[type="file"], input[type="text"], input[type="number"], select { width: 100%; padding: 12px; margin-top: 5px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 15px; background: white; }
         
-        /* Timer Display */
         .timer-display { font-size: 48px; font-family: monospace; font-weight: bold; text-align: center; margin: 15px 0; color: var(--primary); }
         .btn { display: inline-block; width: 100%; padding: 15px; font-size: 16px; font-weight: bold; text-align: center; border: none; border-radius: 8px; cursor: pointer; color: white; margin-bottom: 10px; }
         .btn-start { background: var(--success); }
         .btn-stop { background: var(--danger); }
+        .btn-reset { background: var(--warning); color: #1e293b; }
         
-        /* Mobile Sticky Tap Button */
         .tap-zone { position: fixed; bottom: 0; left: 0; right: 0; background: var(--primary); color: white; text-align: center; padding: 20px; font-size: 22px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 -4px 10px rgba(0,0,0,0.15); cursor: pointer; user-select: none; z-index: 100; }
         .tap-zone:active { opacity: 0.9; }
 
-        /* Finish Finisher List */
         .finisher-row { display: flex; flex-direction: column; padding: 12px 0; border-bottom: 1px solid #e2e8f0; }
         .finisher-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
         .finisher-time { font-family: monospace; font-size: 20px; font-weight: bold; color: var(--primary); }
@@ -40,39 +38,44 @@
         .bib-input { width: 90px !important; margin-top: 0 !important; text-align: center; font-weight: bold; }
         .runner-info { font-size: 14px; color: #475569; font-weight: 500; flex-grow: 1; }
         
+        .badge { display: inline-block; padding: 2px 6px; font-size: 11px; font-weight: bold; border-radius: 4px; background: #e2e8f0; color: #475569; margin-top: 3px; }
         .hidden { display: none !important; }
     </style>
 </head>
 <body>
 
-    <h1>🏃‍♂️ XC Race Timer</h1>
+    <h1>🏃‍♂️ XC Multi-Race Timer</h1>
 
     <!-- STEP 1: SETUP -->
     <div class="section" id="setup-section">
-        <h2>1. Setup Race</h2>
+        <h2>1. Master Setup</h2>
         <label><strong>Google Web App URL:</strong></label>
         <input type="text" id="script-url" placeholder="Paste your Google Apps Script URL here">
         
-        <label style="display:block; margin-top:15px;"><strong>Upload Roster (CSV):</strong></label>
-        <p style="font-size:12px; color:#64748b; margin-bottom:5px;">Format: Bib, Name, Team</p>
+        <label style="display:block; margin-top:15px;"><strong>Upload Master Roster (CSV):</strong></label>
+        <p style="font-size:12px; color:#64748b; margin-bottom:5px;">Format: Bib, Name, Team, Gender, AgeGroup</p>
         <input type="file" id="csv-file" accept=".csv">
         <p id="roster-status" style="margin-top:5px; font-size:14px; color:var(--success); font-weight:bold;"></p>
     </div>
 
-    <!-- STEP 2: CONTROLS -->
+    <!-- STEP 2: ACTIVE RACE EXECUTION -->
     <div class="section">
-        <h2>2. Race Clock</h2>
+        <h2>2. Current Race Execution</h2>
+        <label><strong>Active Race Name / Division:</strong></label>
+        <input type="text" id="race-name" placeholder="e.g., Girls Varsity, Boys Under 12">
+        
         <div class="timer-display" id="clock">00:00.00</div>
-        <button class="btn btn-start" id="start-btn" onclick="startTimer()">Start Race</button>
-        <button class="btn btn-stop hidden" id="stop-btn" onclick="stopTimer()">Stop Race</button>
+        <button class="btn btn-start" id="start-btn" onclick="startTimer()">🚀 Start Current Race</button>
+        <button class="btn btn-stop hidden" id="stop-btn" onclick="stopTimer()">🛑 Stop Race Clock</button>
+        <button class="btn btn-reset hidden" id="reset-btn" onclick="resetTimer()">🔄 Reset Clock for Next Race</button>
     </div>
 
-    <!-- STEP 3: RESULTS TABLE -->
+    <!-- STEP 3: RESULTS LOG -->
     <div class="section">
-        <h2>3. Finish Line Log</h2>
-        <button class="btn" style="background:#475569;" onclick="sendToGoogleSheets()">🚀 Export Results to Google Sheets</button>
+        <h2>3. Active Race Finish Line Log</h2>
+        <button class="btn" style="background:#475569;" onclick="sendToGoogleSheets()">🚀 Export Current Race to Sheets</button>
         <div id="finish-log">
-            <!-- Tapped times will appear here dynamically -->
+            <!-- Finisher splits appear here -->
         </div>
     </div>
 
@@ -86,11 +89,11 @@
         let timerInterval = null;
         let running = false;
         let finishers = [];
-        let roster = {}; // Stores bib -> {name, team}
+        let roster = {}; 
 
         // --- 1. ROSTER CSV PARSING ---
         document.getElementById('csv-file').addEventListener('change', function(e) {
-            const file = e.target.files[0];
+            const file = e.target.files;
             if (!file) return;
             
             const reader = new FileReader();
@@ -100,30 +103,39 @@
                 let count = 0;
                 
                 lines.forEach((line, index) => {
-                    if (index === 0 || !line.trim()) return; // Skip header/empty lines
+                    if (index === 0 || !line.trim()) return; 
                     const columns = line.split(',');
-                    if (columns.length >= 2) {
-                        const bib = columns[0].trim();
-                        const name = columns[1].trim();
-                        const team = columns[2] ? columns[2].trim() : "Unknown";
-                        roster[bib] = { name, team };
+                    if (columns.length >= 3) {
+                        const bib = columns.trim();
+                        const name = columns.trim();
+                        const team = columns.trim();
+                        const gender = columns ? columns.trim() : "N/A";
+                        const ageGroup = columns ? columns.trim() : "N/A";
+                        roster[bib] = { name, team, gender, ageGroup };
                         count++;
                     }
                 });
-                document.getElementById('roster-status').innerText = `✅ Loaded ${count} runners!`;
+                document.getElementById('roster-status').innerText = `✅ Loaded ${count} master runners!`;
             };
             reader.readAsText(file);
         });
 
-        // --- 2. TIMER CORE LOGIC ---
+        // --- 2. TIMER LOGIC ---
         function startTimer() {
             if (running) return;
+            const currentRace = document.getElementById('race-name').value.trim();
+            if (!currentRace) {
+                alert("Please type a name for the active race before starting!");
+                return;
+            }
+            
             running = true;
             startTime = performance.now();
             timerInterval = setInterval(updateClock, 10);
             
             document.getElementById('start-btn').classList.add('hidden');
             document.getElementById('stop-btn').classList.remove('hidden');
+            document.getElementById('reset-btn').classList.add('hidden');
             document.getElementById('tap-button').classList.remove('hidden');
         }
 
@@ -136,26 +148,37 @@
             let minutes = Math.floor(ms / 60000);
             let seconds = Math.floor((ms % 60000) / 1000);
             let hundredths = Math.floor((ms % 1000) / 10);
-            
             return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(hundredths).padStart(2, '0')}`;
         }
 
         function stopTimer() {
             clearInterval(timerInterval);
             running = false;
+            document.getElementById('stop-btn').classList.add('hidden');
+            document.getElementById('reset-btn').classList.remove('hidden');
             document.getElementById('tap-button').classList.add('hidden');
         }
 
-        // --- 3. RECORD FINISHER TAP ---
+        function resetTimer() {
+            if(confirm("Are you sure you want to clear the clock and prepare for the next race? Make sure you exported your data first!")) {
+                finishers = [];
+                document.getElementById('finish-log').innerHTML = "";
+                document.getElementById('clock').innerText = "00:00.00";
+                document.getElementById('race-name').value = "";
+                document.getElementById('start-btn').classList.remove('hidden');
+                document.getElementById('reset-btn').classList.add('hidden');
+            }
+        }
+
+        // --- 3. RECORD FINISHER ---
         function recordFinisher() {
             if (!running) return;
             const elapsed = performance.now() - startTime;
             const timeStr = formatTime(elapsed);
-            const place = finishers.length + 1;
+            const racePlace = finishers.length + 1;
             
-            const finisher = { place, time: timeStr, bib: "" };
+            const finisher = { racePlace, time: timeStr, bib: "" };
             finishers.push(finisher);
-            
             renderFinisherRow(finisher);
         }
 
@@ -163,78 +186,70 @@
             const log = document.getElementById('finish-log');
             const row = document.createElement('div');
             row.className = 'finisher-row';
-            row.id = `place-${finisher.place}`;
+            row.id = `place-${finisher.racePlace}`;
             
             row.innerHTML = `
                 <div class="finisher-meta">
-                    <strong>Place #${finisher.place}</strong>
+                    <strong>Race Place #${finisher.racePlace}</strong>
                     <div class="finisher-time">${finisher.time}</div>
                 </div>
                 <div class="input-group">
-                    <input type="text" 
-                           class="bib-input" 
-                           placeholder="Bib #" 
-                           inputmode="numeric"
-                           pattern="[0-9]*"
-                           oninput="lookupBib(${finisher.place}, this.value)">
-                    <div class="runner-info" id="info-${finisher.place}"><i>Waiting for bib...</i></div>
+                    <input type="text" class="bib-input" placeholder="Bib #" inputmode="numeric" pattern="[0-9]*" oninput="lookupBib(${finisher.racePlace}, this.value)">
+                    <div class="runner-info" id="info-${finisher.racePlace}"><i>Waiting for bib...</i></div>
                 </div>
             `;
-            // Insert new finishers at the top of the UI list for immediate visibility
             log.insertBefore(row, log.firstChild);
         }
 
-        // Live look up function as the user types
-        function lookupBib(place, bibValue) {
-            const cleanBib = bibValue.trim();
-            const index = finishers.findIndex(f => f.place === place);
-            const infoDiv = document.getElementById(`info-${place}`);
-            
-            if (index !== -1) {
-                finishers[index].bib = cleanBib;
-            }
+        function lookupBib(racePlace, bibValue) {
+            const cleanBib = (bibValue || '').trim();
+            const index = finishers.findIndex((f) => f.racePlace === racePlace);
+            const infoDiv = document.getElementById(`info-${racePlace}`);
 
             if (!cleanBib) {
-                infoDiv.innerHTML = "<i>Waiting for bib...</i>";
+                if (index !== -1) finishers[index].bib = '';
+                infoDiv.innerHTML = 'Waiting for bib...';
                 return;
             }
 
             if (roster[cleanBib]) {
                 const runner = roster[cleanBib];
-                infoDiv.innerHTML = `<span style="color: var(--success); font-weight: bold;">🟢 ${runner.name}</span> <br> <span style="font-size:12px; color:#64748b;">${runner.team}</span>`;
+                if (index !== -1) finishers[index].bib = cleanBib;
+                infoDiv.innerHTML = `<span style="color: var(--success); font-weight: bold;">🟢 ${runner.name}</span><br><span style="font-size:12px; color:#64748b;">${runner.team}</span> <span class="badge">${runner.gender}</span> <span class="badge">${runner.ageGroup}</span>`;
             } else {
-                infoDiv.innerHTML = `<span style="color: var(--danger);">🔴 Unknown Bib Number</span>`;
+                infoDiv.innerHTML = '<span style="color: var(--danger);">🔴 Unknown Bib</span>';
             }
         }
 
-        // --- 4. EXPORT TO GOOGLE SHEETS ---
         function sendToGoogleSheets() {
-            const url = document.getElementById('script-url').value;
+            const url = document.getElementById('script-url').value.trim();
+            const currentRace = document.getElementById('race-name').value.trim();
+
             if (!url) {
-                alert("Please paste your Google Web App URL in Step 1 first!");
+                alert('Please paste your Google Web App URL!');
                 return;
             }
 
-            // Map the matched roster metadata back onto the results payload
-            const payload = finishers.map(f => {
-                const runner = roster[f.bib] || { name: "Unknown", team: "Unknown" };
+            const payload = finishers.map((f) => {
+                const runner = roster[f.bib] || { name: 'Unknown', team: 'Unknown', gender: 'Unknown', ageGroup: 'Unknown' };
                 return {
-                    Place: f.place,
+                    RaceName: currentRace,
+                    RacePlace: f.racePlace,
                     Time: f.time,
-                    Bib: f.bib || "N/A",
+                    Bib: f.bib || 'N/A',
                     Name: runner.name,
-                    Team: runner.team
+                    Team: runner.team,
+                    Gender: runner.gender,
+                    AgeGroup: runner.ageGroup
                 };
             });
 
-            // Send data cleanly using fetch via Google Web App script
             fetch(url, {
-                method: "POST",
-                mode: "no-cors",
-                headers: { "Content-Type": "application/json" },
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
-            }).then(() => alert("🚀 Data sent! Check your Google Sheet.")).catch(err => alert("Error saving results: " + err));
+            })
+                .then(() => alert(`🚀 Results for ${currentRace} successfully saved to Google Sheets!`))
+                .catch((err) => alert('Error saving results: ' + err));
         }
-    </script>
-</body>
-</html>

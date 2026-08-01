@@ -17,45 +17,39 @@
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
         body { background: var(--background); color: var(--text); padding: 15px; padding-bottom: 90px; }
         h1, h2 { margin-bottom: 10px; font-weight: 700; }
-        .section { background: var(--card); padding: 15px; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        
+        .section { background: var(--card); padding: 15px; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); }
         input[type="file"], input[type="text"], input[type="number"], select { width: 100%; padding: 12px; margin-top: 5px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 15px; background: white; }
-        
-        .timer-display { font-size: 48px; font-family: monospace; font-weight: bold; text-align: center; margin: 15px 0; color: var(--primary); }
+        .timer-display { font-size: 48 px; font-family: monospace; font-weight: bold; text-align: center; margin: 15px 0; color: var(--primary); }
         .btn { display: inline-block; width: 100%; padding: 15px; font-size: 16px; font-weight: bold; text-align: center; border: none; border-radius: 8px; cursor: pointer; color: white; margin-bottom: 10px; }
         .btn-start { background: var(--success); }
         .btn-stop { background: var(--danger); }
         .btn-reset { background: var(--warning); color: #1e293b; }
-        
-        .tap-zone { position: fixed; bottom: 0; left: 0; right: 0; background: var(--primary); color: white; text-align: center; padding: 20px; font-size: 22px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 -4px 10px rgba(0,0,0,0.15); cursor: pointer; user-select: none; z-index: 100; }
-        .tap-zone:active { opacity: 0.9; }
-
+        .tap-zone { position: fixed; bottom: 0; left: 0; right: 0; background: var(--primary); color: white; text-align: center; padding: 20px; font-size: 22px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 -4px 10px rgba(0, 0, 0, 0.15); cursor: pointer; user-select: none; z-index: 100; }
+        .tap-zone: active { opacity: 0.9; }
         .finisher-row { display: flex; flex-direction: column; padding: 12px 0; border-bottom: 1px solid #e2e8f0; }
         .finisher-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
         .finisher-time { font-family: monospace; font-size: 20px; font-weight: bold; color: var(--primary); }
-        
         .input-group { display: flex; gap: 10px; align-items: center; }
         .bib-input { width: 90px !important; margin-top: 0 !important; text-align: center; font-weight: bold; }
         .runner-info { font-size: 14px; color: #475569; font-weight: 500; flex-grow: 1; }
-        
         .badge { display: inline-block; padding: 2px 6px; font-size: 11px; font-weight: bold; border-radius: 4px; background: #e2e8f0; color: #475569; margin-top: 3px; }
         .hidden { display: none !important; }
     </style>
 </head>
 <body>
-
     <h1>🏃‍♂️ XC Multi-Race Timer</h1>
 
     <!-- STEP 1: SETUP -->
     <div class="section" id="setup-section">
         <h2>1. Master Setup</h2>
         <label><strong>Google Web App URL:</strong></label>
-        <input type="text" id="script-url" placeholder="Paste your Google Apps Script URL here">
+        <input type="text" id="script-url" placeholder="Paste your Google Apps Script URL here" onchange="fetchRosterFromSheets()">
         
-        <label style="display:block; margin-top:15px;"><strong>Upload Master Roster (CSV):</strong></label>
-        <p style="font-size:12px; color:#64748b; margin-bottom:5px;">Format: Bib, Name, Team, Gender, AgeGroup</p>
-        <input type="file" id="csv-file" accept=".csv">
-        <p id="roster-status" style="margin-top:5px; font-size:14px; color:var(--success); font-weight:bold;">Waiting for a CSV file...</p>
+        <div style="margin-top:15px; padding:10px; background:#f1f5f9; border-radius:6px;">
+            <p style="font-size:14px; font-weight:bold; color:var(--primary);">Spreadsheet Integration Active</p>
+            <p style="font-size:12px; color:#64748b; margin-top:4px;">Your app will automatically pull from your "Roster" sheet tab when the URL above is entered.</p>
+        </div>
+        <p id="roster-status" style="margin-top:10px; font-size:14px; color:#64748b; font-weight:bold;">Waiting for Web App URL...</p>
     </div>
 
     <!-- STEP 2: ACTIVE RACE EXECUTION -->
@@ -65,8 +59,7 @@
         <select id="race-name">
             <option value="">Select a race</option>
         </select>
-        <p style="font-size:12px; color:#64748b; margin-top:6px;">The dropdown is built from the Gender + AgeGroup values in the uploaded CSV.</p>
-        
+        <p style="font-size:12px; color:#64748b; margin-top:6px;">The dropdown is built from the Gender + AgeGroup values pulled from the Google Sheet.</p>
         <div class="timer-display" id="clock">00:00.00</div>
         <button class="btn btn-start" id="start-btn">🚀 Start Current Race</button>
         <button class="btn btn-stop hidden" id="stop-btn">🛑 Stop Race Clock</button>
@@ -84,7 +77,7 @@
 
     <!-- LARGE MOBILE TAP BUTTON -->
     <div class="tap-zone hidden" id="tap-button">
-        ⏱️ TAP AT FINISH LINE
+        ⏱ TAP AT FINISH LINE
     </div>
 
     <script>
@@ -95,20 +88,76 @@
         let roster = {};
         let raceOptions = [];
 
+        // Fetch roster directly from the backend Google Sheet
+        function fetchRosterFromSheets() {
+            const url = document.getElementById('script-url').value.trim();
+            const status = document.getElementById('roster-status');
+            
+            if (!url) {
+                status.textContent = "Waiting for Web App URL...";
+                status.style.color = "#64748b";
+                return;
+            }
+
+            status.textContent = "🔄 Downloading live roster from Google Sheet...";
+            status.style.color = var(--warning);
+
+            // Appends the getRoster action to the doGet parameter
+            const fetchUrl = url + (url.includes('?') ? '&' : '?') + 'action=getRoster';
+
+            fetch(fetchUrl)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        status.textContent = "❌ Error: " + data.error;
+                        status.style.color = "var(--danger)";
+                        return;
+                    }
+
+                    roster = {};
+                    raceOptions = [];
+                    let count = 0;
+
+                    data.forEach(runner => {
+                        const bib = runner.bib;
+                        if (bib) {
+                            const fullName = `${runner.firstName} ${runner.lastName}`.trim();
+                            const raceName = `${runner.gender} ${runner.ageGroup}`.trim();
+                            
+                            roster[bib] = {
+                                name: fullName,
+                                team: runner.team,
+                                gender: runner.gender,
+                                ageGroup: runner.ageGroup,
+                                raceName: raceName
+                            };
+                            count++;
+                            if (raceName) raceOptions.push(raceName);
+                        }
+                    });
+
+                    populateRaceOptions();
+                    status.textContent = `✅ Successfully loaded ${count} runners live from Google Sheet!`;
+                    status.style.color = "var(--success)";
+                })
+                .catch(err => {
+                    console.error(err);
+                    status.textContent = "❌ Failed to fetch. Make sure Web App is deployed as 'Anyone' and URL is correct.";
+                    status.style.color = "var(--danger)";
+                });
+        }
+
         function populateRaceOptions() {
             const select = document.getElementById('race-name');
             const previousValue = select.value;
             const options = [...new Set(raceOptions.filter(Boolean))].sort();
-
             select.innerHTML = '<option value="">Select a race/division</option>';
-
             options.forEach((value) => {
                 const option = document.createElement('option');
                 option.value = value;
                 option.textContent = value;
                 select.appendChild(option);
             });
-
             if (previousValue && options.includes(previousValue)) {
                 select.value = previousValue;
             } else if (options.length) {
@@ -116,67 +165,7 @@
             }
         }
 
-        // --- 1. ROSTER CSV PARSING ---
-        function parseRosterText(text) {
-            const lines = text.split(/\r?\n/);
-            let count = 0;
-
-            roster = {};
-            raceOptions = [];
-
-            lines.forEach((line, index) => {
-                if (index === 0 || !line.trim()) return;
-
-                const columns = line.split(',');
-                if (columns.length >= 5) {
-                    const bib = columns[0].trim();
-                    const name = columns[1] ? columns[1].trim() : '';
-                    const team = columns[2] ? columns[2].trim() : '';
-                    const gender = columns[3] ? columns[3].trim() : 'N/A';
-                    const ageGroup = columns[4] ? columns[4].trim() : 'N/A';
-                    const raceName = `${gender} ${ageGroup}`.trim();
-
-                    if (bib) {
-                        roster[bib] = { name, team, gender, ageGroup, raceName };
-                        count++;
-                        if (raceName) raceOptions.push(raceName);
-                    }
-                }
-            });
-
-            return count;
-        }
-
-        function handleRosterUpload(e) {
-            const file = e.target.files && e.target.files[0];
-            const status = document.getElementById('roster-status');
-            const select = document.getElementById('race-name');
-
-            if (!file) return;
-
-            status.textContent = 'Loading roster...';
-            status.style.color = 'var(--warning)';
-            select.innerHTML = '<option value="">Select a race</option>';
-
-            const reader = new FileReader();
-            reader.onload = function (event) {
-                const text = event.target.result || '';
-                const count = parseRosterText(text);
-                populateRaceOptions();
-                status.textContent = `✅ Loaded ${count} master runners!`;
-                status.style.color = 'var(--success)';
-            };
-            reader.onerror = function () {
-                status.textContent = '❌ Could not read the selected CSV file.';
-                status.style.color = 'var(--danger)';
-            };
-            reader.readAsText(file);
-        }
-
-        window.handleRosterUpload = handleRosterUpload;
-        document.getElementById('csv-file').addEventListener('change', handleRosterUpload);
-
-        // --- 2. TIMER LOGIC ---
+        // --- TIMER LOGIC ---
         window.startTimer = function () {
             if (running) return;
             const currentRace = document.getElementById('race-name').value.trim();
@@ -184,11 +173,9 @@
                 alert('Please select a race before starting!');
                 return;
             }
-
             running = true;
             startTime = performance.now();
             timerInterval = setInterval(updateClock, 10);
-
             document.getElementById('start-btn').classList.add('hidden');
             document.getElementById('stop-btn').classList.remove('hidden');
             document.getElementById('reset-btn').classList.add('hidden');
@@ -228,13 +215,12 @@
             }
         };
 
-        // --- 3. RECORD FINISHER ---
+        // --- RECORD FINISHER ---
         window.recordFinisher = function () {
             if (!running) return;
             const elapsed = performance.now() - startTime;
             const timeStr = formatTime(elapsed);
             const racePlace = finishers.length + 1;
-
             const finisher = { racePlace, time: timeStr, bib: "" };
             finishers.push(finisher);
             renderFinisherRow(finisher);
@@ -245,7 +231,6 @@
             const row = document.createElement('div');
             row.className = 'finisher-row';
             row.id = `place-${finisher.racePlace}`;
-            
             row.innerHTML = `
                 <div class="finisher-meta">
                     <strong>Race Place #${finisher.racePlace}</strong>
@@ -263,13 +248,11 @@
             const cleanBib = (bibValue || '').trim();
             const index = finishers.findIndex((f) => f.racePlace === racePlace);
             const infoDiv = document.getElementById(`info-${racePlace}`);
-
             if (!cleanBib) {
                 if (index !== -1) finishers[index].bib = '';
                 infoDiv.innerHTML = 'Waiting for bib...';
                 return;
             }
-
             if (roster[cleanBib]) {
                 const runner = roster[cleanBib];
                 if (index !== -1) finishers[index].bib = cleanBib;
@@ -282,12 +265,10 @@
         window.sendToGoogleSheets = function () {
             const url = document.getElementById('script-url').value.trim();
             const currentRace = document.getElementById('race-name').value.trim();
-
             if (!url) {
                 alert('Please paste your Google Web App URL!');
                 return;
             }
-
             const payload = finishers.map((f) => {
                 const runner = roster[f.bib] || { name: 'Unknown', team: 'Unknown', gender: 'Unknown', ageGroup: 'Unknown' };
                 return {
@@ -301,15 +282,14 @@
                     AgeGroup: runner.ageGroup
                 };
             });
-
             fetch(url, {
                 method: 'POST',
                 mode: 'no-cors',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             })
-                .then(() => alert(`🚀 Results for ${currentRace} successfully saved to Google Sheets!`))
-                .catch((err) => alert('Error saving results: ' + err));
+            .then(() => alert(`🚀 Results for ${currentRace} successfully saved to Google Sheets!`))
+            .catch((err) => alert('Error saving results: ' + err));
         };
 
         document.getElementById('start-btn').addEventListener('click', window.startTimer);
@@ -320,4 +300,3 @@
     </script>
 </body>
 </html>
-

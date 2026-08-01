@@ -95,17 +95,14 @@
             
             if (!url) {
                 status.textContent = "Waiting for Web App URL...";
-                status.style.color = "#64748b";
                 return;
             }
 
-            status.textContent = "🔄 Downloading live roster from Google Sheet...";
-            status.style.color = "var(--warning)";
-
-            // Appends the getRoster action to the doGet parameter
+            status.textContent = "🔄 Loading roster...";
             const fetchUrl = url + (url.includes('?') ? '&' : '?') + 'action=getRoster';
 
-            fetch(fetchUrl)
+            // Added redirect policy to follow
+            fetch(fetchUrl, { method: 'GET', redirect: 'follow' })
                 .then(response => response.json())
                 .then(data => {
                     if (data.error) {
